@@ -3,6 +3,10 @@ import logo from './logo.svg';
 import './App.css';
 
 const App: React.FC = () => {
+  var a = 4;
+  if (a === 2) {
+
+  }
   return (
     <div className="App">
       <header className="App-header">
@@ -10,8 +14,7 @@ const App: React.FC = () => {
         <p>
           Edit <code>src/App.tsx</code> and save to reload.
         </p>
-        <a
-          className="App-link"
+        <a className="App-link"
           href="https://reactjs.org"
           target="_blank"
           rel="noopener noreferrer"
