@@ -1,4 +1,6 @@
 import React from "react"
+import { createPortal } from "react-dom";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
 export type ColumnConfiguration = {
   id: string;
@@ -37,14 +39,36 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps> 
 
     const orderedColumns = [...columns].sort(x => x.order);
 
+    const extraProps = {
+      renderClone: (provided: any, snapshot: any, rubric: any) => (
+        createPortal(<div
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          ref={provided.innerRef}
+        >
+          Blargh
+        </div>, document.body
+        )
+      )
+    };
     return (
       <table>
         <thead>
-          <tr>
-            {orderedColumns.map(c => (
-              <th key={c.id}>{c.title}</th>
-            ))}
-          </tr>
+          <DragDropContext onDragEnd={console.log}>
+            <Droppable droppableId='headers' direction='horizontal' {...extraProps}>
+              {(provided, snapshot) => (
+                <tr ref={provided.innerRef}>
+                  {orderedColumns.map(c => (
+                    <Draggable index={c.order} draggableId={c.id} key={c.id}>
+                      {(colProvided, colSnapshot) => (
+                        <th ref={colProvided.innerRef} {...colProvided.draggableProps} {...colProvided.dragHandleProps}>{c.title}</th>
+                      )}
+                    </Draggable>
+                  ))}
+                </tr>
+              )}
+            </Droppable>
+          </DragDropContext>
         </thead>
         <tbody>
           {rows.map(r => (
