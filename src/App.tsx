@@ -1,6 +1,6 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
+import { DraggableTable, createColumn, makeRow } from './Table';
 
 const App: React.FC = () => {
   var a = 4;
@@ -9,19 +9,18 @@ const App: React.FC = () => {
   }
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <DraggableTable
+        columns={[
+          createColumn(0, 'personId', 'Person ID'),
+          createColumn(1, 'name', 'Name'),
+          createColumn(2, 'age', 'Age'),
+        ]}
+        rows={[
+          makeRow(0, { personId: 123, name: 'Andrew Varnerin', age: 27 }),
+          makeRow(1, { personId: 234, name: 'Sterling Archer', age: 40 }),
+          makeRow(2, { personId: 345, name: 'Albus Dumbledore', age: 112 })
+        ]}
+      />
     </div>
   );
 }
