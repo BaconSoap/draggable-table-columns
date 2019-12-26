@@ -29,7 +29,10 @@ export const makeRow = (id: number, data: DataMap): RowData => ({ id, data });
 export type DraggableTableOwnProps = {
   columns: ColumnConfiguration[];
   rows: RowData[];
+  onColumnsReordered: (newIdsAndOrders: IdToOrder) => void;
 }
+
+export type IdToOrder = { [id: string]: number; };
 
 type DraggableTableState = {
   dragColumnId: string | null;
@@ -38,6 +41,8 @@ type DraggableTableState = {
   xOffset: number | null,
   yPosition: number | null;
   width: number | null;
+  allBoundingRects: DOMRect[] | null,
+  hasPassedThreshold: boolean,
 }
 
 export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, DraggableTableState> {
@@ -49,6 +54,8 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     xOffset: null,
     yPosition: null,
     width: null,
+    allBoundingRects: null,
+    hasPassedThreshold: false,
   }
 
   private dragColumnRef: React.Ref<HTMLTableHeaderCellElement> = React.createRef();
@@ -63,13 +70,14 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
 
     const boundingRect = realTarget.getBoundingClientRect();
 
+    // get a snapshot of values for dragging
+    const allBoundingRects = Array.from(realTarget.parentElement!.children).map(e => e.getBoundingClientRect());
     const initialXPosition = e.pageX;
     const xPosition = e.pageX;
     const xOffset = e.pageX - boundingRect.left;
     const yPosition = boundingRect.top;
     const width = boundingRect.width;
     const dragColumnId = realTarget.dataset.columnId!;
-    console.log(realTarget.getBoundingClientRect());
 
     this.setState({
       dragColumnId,
@@ -77,7 +85,9 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
       xPosition,
       xOffset,
       yPosition,
-      width
+      width,
+      allBoundingRects,
+      hasPassedThreshold: false,
     });
   }
 
@@ -85,13 +95,23 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     if (!this.state.dragColumnId) {
       return;
     }
+    let hasPassedThreshold = this.state.hasPassedThreshold;
+    if (!hasPassedThreshold) {
+      hasPassedThreshold = Math.abs(e.pageX - this.state.initialXPosition!) > 10;
+    }
 
-    this.setState({ xPosition: e.pageX });
+    this.setState({ xPosition: e.pageX, hasPassedThreshold });
   }
 
   public handleHeaderCellMouseUp = (e: MouseEvent) => {
     if (!this.state.dragColumnId) {
       return;
+    }
+
+    // if we've passed the threshold to start dragging, compute final
+    // column positions here
+    if (this.state.hasPassedThreshold) {
+      this.computeNewPositions();
     }
 
     this.setState({
@@ -100,8 +120,42 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
       xPosition: null,
       xOffset: null,
       yPosition: null,
-      width: null
+      width: null,
+      allBoundingRects: null,
+      hasPassedThreshold: false,
     });
+  }
+
+  private computeNewPositions = () => {
+    // figure out where the new field goes
+    let newIndex = 0;
+    const xPosition = this.state.xPosition!;
+    const boundingRects = this.state.allBoundingRects!;
+
+    for (let i = 0; i < boundingRects.length; i++) {
+      const isLast = i === boundingRects.length - 1;
+      const r = boundingRects[i];
+      const isWithinCurrentCell = (r.left <= xPosition && xPosition < r.right);
+
+      // this can only be true if it's dropped to the left of the table
+      const isLeftOfCurrentCell = (r.left > xPosition);
+      if (isWithinCurrentCell || isLeftOfCurrentCell || isLast) {
+        newIndex = i;
+        break;
+      }
+    }
+
+    // move the column in the array and compute new order values
+    const sortedColumns = [...this.props.columns].map(sc => ({ ...sc })).sort((first, second) => first.order - second.order);
+    const fromIndex = sortedColumns.findIndex(x => x.id === this.state.dragColumnId)!;
+    const el = sortedColumns[fromIndex];
+    sortedColumns.splice(fromIndex, 1);
+    sortedColumns.splice(newIndex, 0, el);
+
+    let idsToOrder: any = {};
+    sortedColumns.forEach((sc, idx) => sc.order = idx);
+    sortedColumns.forEach(sc => idsToOrder[sc.id] = sc.order);
+    this.props.onColumnsReordered(idsToOrder);
   }
 
   public componentDidMount() {
@@ -120,12 +174,12 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
   public render() {
     const { columns, rows } = this.props;
 
-    const orderedColumns = [...columns].sort(x => x.order);
+    const orderedColumns = [...columns].sort((first, second) => first.order - second.order);
     let headerColumns = [...orderedColumns];
 
     // if we're currently dragging a header, find and clone that column configuration
     // as a new object with the drag field set. HeaderCell will render this differently
-    if (this.state.dragColumnId) {
+    if (this.state.dragColumnId && this.state.hasPassedThreshold) {
       const dragHeaderCell = orderedColumns.find(h => h.id === this.state.dragColumnId)!;
       const clonedCell: ColumnConfiguration = { ...dragHeaderCell, isDragging: true };
       const index = headerColumns.findIndex(h => h.id === this.state.dragColumnId);
@@ -142,7 +196,7 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
               {headerColumns.map(c => (
                 <HeaderCell
                   column={c}
-                  key={c.id}
+                  key={(c.isDragging ? c.id + '_drag' : c.id)}
                   ref={this.dragColumnRef}
                   xPosition={this.state.xPosition}
                   xOffset={this.state.xOffset}
@@ -168,23 +222,27 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
             </tr>
             <tr>
               <td>initialXPosition</td>
-              <td>{(this.state as any).initialXPosition}</td>
+              <td>{this.state.initialXPosition}</td>
             </tr>
             <tr>
               <td>xPosition</td>
-              <td>{(this.state as any).xPosition}</td>
+              <td>{this.state.xPosition}</td>
             </tr>
             <tr>
               <td>xOffset</td>
-              <td>{(this.state as any).xOffset}</td>
+              <td>{this.state.xOffset}</td>
             </tr>
             <tr>
               <td>yPosition</td>
-              <td>{(this.state as any).yPosition}</td>
+              <td>{this.state.yPosition}</td>
             </tr>
             <tr>
               <td>width</td>
-              <td>{(this.state as any).width}</td>
+              <td>{this.state.width}</td>
+            </tr>
+            <tr>
+              <td>hasPassedThreshold</td>
+              <td>{this.state.hasPassedThreshold + ''}</td>
             </tr>
           </tbody>
         </table>
