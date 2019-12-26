@@ -32,6 +32,12 @@ table tfoot th {
   color: #777;
   background: rgba(0,0,0,.1);
 }
+
+table thead th.dragging,
+table tfoot th.dragging {
+  color: #777;
+  background: #e6e6e6;
+}
 table caption {
   padding:.5em;
 }

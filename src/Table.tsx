@@ -56,6 +56,7 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
   public handleHeaderCellMouseDown = (e: React.MouseEvent<HTMLElement>) => {
     const realTarget = e.target as HTMLElement;
 
+    // make sure we're actually working with a TH element
     if (realTarget.nodeName !== 'TH') {
       return;
     }
@@ -80,14 +81,19 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     });
   }
 
-  public handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
+  public handleMouseMove = (e: MouseEvent) => {
     if (!this.state.dragColumnId) {
       return;
     }
+
     this.setState({ xPosition: e.pageX });
   }
 
-  public handleHeaderCellMouseUp = (e: React.MouseEvent<HTMLElement>) => {
+  public handleHeaderCellMouseUp = (e: MouseEvent) => {
+    if (!this.state.dragColumnId) {
+      return;
+    }
+
     this.setState({
       dragColumnId: null,
       initialXPosition: null,
@@ -98,12 +104,27 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     });
   }
 
+  public componentDidMount() {
+    // these are bound outside of the header row to ensure that dragging
+    // around isn't a weird experience - otherwise the events would only fire
+    // when the mouse is within the header row
+    document.addEventListener('mousemove', this.handleMouseMove)
+    document.addEventListener('mouseup', this.handleHeaderCellMouseUp)
+  }
+
+  public componentWillUnmount() {
+    document.removeEventListener('mousemove', this.handleMouseMove);
+    document.removeEventListener('mouseup', this.handleHeaderCellMouseUp);
+  }
+
   public render() {
     const { columns, rows } = this.props;
 
     const orderedColumns = [...columns].sort(x => x.order);
     let headerColumns = [...orderedColumns];
 
+    // if we're currently dragging a header, find and clone that column configuration
+    // as a new object with the drag field set. HeaderCell will render this differently
     if (this.state.dragColumnId) {
       const dragHeaderCell = orderedColumns.find(h => h.id === this.state.dragColumnId)!;
       const clonedCell: ColumnConfiguration = { ...dragHeaderCell, isDragging: true };
@@ -117,8 +138,6 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
           <thead>
             <tr
               onMouseDown={this.handleHeaderCellMouseDown}
-              onMouseUp={this.handleHeaderCellMouseUp}
-              onMouseMove={this.handleMouseMove}
             >
               {headerColumns.map(c => (
                 <HeaderCell
@@ -140,6 +159,7 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
           </tbody>
         </table>
 
+        <h3>Debug</h3>
         <table>
           <tbody>
             <tr>
@@ -186,6 +206,8 @@ type HeaderCellProps = {
 export const HeaderCell = React.forwardRef((props: HeaderCellProps, ref: React.Ref<HTMLTableHeaderCellElement>) => {
   const { column, xPosition, yPosition, xOffset, width } = props;
 
+  // if this is the draggable placeholder column, render it outside the table
+  // and sticky to the mouse's x position
   if (column.isDragging) {
     const left = xPosition! - xOffset!;
     const headerCellStyle: React.CSSProperties = {
@@ -197,17 +219,22 @@ export const HeaderCell = React.forwardRef((props: HeaderCellProps, ref: React.R
       pointerEvents: 'none',
       width: width!
     };
+
+    // portal the element to a special holding table that exists to retain styles/behavior.
+    // this prevents the table header row from shifting everything
     return createPortal((<th
       key={column.id}
       data-column-id={column.id}
       ref={ref}
       style={headerCellStyle}
+      className='dragging'
     >
       {column.title}
     </th>
     ), document.querySelector('#target thead tr')!);
   }
 
+  // normal header cells render here
   return (<th
     key={column.id}
     data-column-id={column.id}
