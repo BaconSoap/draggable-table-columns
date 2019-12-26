@@ -1,5 +1,6 @@
 import React from "react"
 import { createPortal } from "react-dom";
+import { sortBy, cloneArrayObjects } from "./helpers";
 
 export type ColumnConfiguration = {
   id: string;
@@ -160,7 +161,7 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     }
 
     // move the column in the array and compute new order values
-    const sortedColumns = [...this.props.columns].map(sc => ({ ...sc })).sort((first, second) => first.order - second.order);
+    const sortedColumns = sortBy(cloneArrayObjects(this.props.columns), c => c.order);
     const fromIndex = sortedColumns.findIndex(x => x.id === this.state.dragColumnId)!;
     const el = sortedColumns[fromIndex];
     sortedColumns.splice(fromIndex, 1);
@@ -189,14 +190,20 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
   public render() {
     const { columns, rows } = this.props;
 
-    const orderedColumns = [...columns].sort((first, second) => first.order - second.order);
+    const orderedColumns = sortBy([...columns], c => c.order);
     let headerColumns = [...orderedColumns];
 
     // if we're currently dragging a header, find and clone that column configuration
     // as a new object with the drag field set. HeaderCell will render this differently
     if (this.state.dragColumnId && this.state.hasPassedThreshold) {
       const dragHeaderCell = orderedColumns.find(h => h.id === this.state.dragColumnId)!;
+
+      // despite the drag being initiated by the table header, we're instead going to have a clone follow the cursor,
+      // rather than the original element - this prevents weird jank in the table
       const clonedCell: ColumnConfiguration = { ...dragHeaderCell, isDragging: true };
+
+      // n.b. this is inserting the cloned element right before the original one,
+      // but I don't think that's necessary
       const index = headerColumns.findIndex(h => h.id === this.state.dragColumnId);
       headerColumns.splice(index, 0, clonedCell);
     }

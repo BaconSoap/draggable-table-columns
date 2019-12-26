@@ -1,6 +1,7 @@
 import React from 'react';
 import './App.css';
 import { DraggableTable, createColumn, makeRow, ColumnConfiguration, IdToOrder } from './Table';
+import { sortBy } from './helpers';
 
 type AppState = { columns: ColumnConfiguration[] };
 class App extends React.PureComponent<{}, AppState> {
@@ -13,13 +14,15 @@ class App extends React.PureComponent<{}, AppState> {
     ]
   };
 
+  // when the table columns are reordered apply to the master list of columns
+  // in a real app this would likely be redux
   private onColumnsReordered = (idsToOrder: IdToOrder) => {
-    const newColumns = this.state.columns.map(c => ({
+    let newColumns = this.state.columns.map(c => ({
       ...c,
       order: idsToOrder[c.id]
     }));
 
-    newColumns.sort((first, second) => first.order - second.order);
+    newColumns = sortBy(newColumns, c => c.order);
 
     this.setState({ columns: newColumns });
   }
