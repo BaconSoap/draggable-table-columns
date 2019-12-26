@@ -43,6 +43,9 @@ type DraggableTableState = {
   width: number | null;
   allBoundingRects: DOMRect[] | null,
   hasPassedThreshold: boolean,
+  // debug stuffs
+  currentPositions: IdToOrder | null,
+  shouldLiveUpdate: boolean,
 }
 
 export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, DraggableTableState> {
@@ -56,6 +59,8 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     width: null,
     allBoundingRects: null,
     hasPassedThreshold: false,
+    currentPositions: null,
+    shouldLiveUpdate: true,
   }
 
   private dragColumnRef: React.Ref<HTMLTableHeaderCellElement> = React.createRef();
@@ -88,6 +93,7 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
       width,
       allBoundingRects,
       hasPassedThreshold: false,
+      currentPositions: null,
     });
   }
 
@@ -99,8 +105,15 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     if (!hasPassedThreshold) {
       hasPassedThreshold = Math.abs(e.pageX - this.state.initialXPosition!) > 10;
     }
+    let positions: IdToOrder | null = null;
+    if (hasPassedThreshold) {
+      positions = this.computeNewPositions();
+      if (this.state.shouldLiveUpdate) {
+        this.props.onColumnsReordered(positions);
+      }
+    }
 
-    this.setState({ xPosition: e.pageX, hasPassedThreshold });
+    this.setState({ xPosition: e.pageX, hasPassedThreshold, currentPositions: positions });
   }
 
   public handleHeaderCellMouseUp = (e: MouseEvent) => {
@@ -111,7 +124,7 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     // if we've passed the threshold to start dragging, compute final
     // column positions here
     if (this.state.hasPassedThreshold) {
-      this.computeNewPositions();
+      this.props.onColumnsReordered(this.computeNewPositions());
     }
 
     this.setState({
@@ -123,10 +136,11 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
       width: null,
       allBoundingRects: null,
       hasPassedThreshold: false,
+      currentPositions: null,
     });
   }
 
-  private computeNewPositions = () => {
+  private computeNewPositions = (): IdToOrder => {
     // figure out where the new field goes
     let newIndex = 0;
     const xPosition = this.state.xPosition!;
@@ -155,7 +169,8 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
     let idsToOrder: any = {};
     sortedColumns.forEach((sc, idx) => sc.order = idx);
     sortedColumns.forEach(sc => idsToOrder[sc.id] = sc.order);
-    this.props.onColumnsReordered(idsToOrder);
+
+    return idsToOrder;
   }
 
   public componentDidMount() {
@@ -217,6 +232,10 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
         <table>
           <tbody>
             <tr>
+              <td>Live Update?</td>
+              <td><input type='checkbox' checked={this.state.shouldLiveUpdate} onChange={e => this.setState({ shouldLiveUpdate: !this.state.shouldLiveUpdate })} /></td>
+            </tr>
+            <tr>
               <td>dragColumnId</td>
               <td>{this.state.dragColumnId}</td>
             </tr>
@@ -244,10 +263,19 @@ export class DraggableTable extends React.PureComponent<DraggableTableOwnProps, 
               <td>hasPassedThreshold</td>
               <td>{this.state.hasPassedThreshold + ''}</td>
             </tr>
+            <tr>
+              <td>Current Positions</td>
+              <td>{
+                this.state.currentPositions
+                  ? Object.keys(this.state.currentPositions).map(k => k + ': ' + this.state.currentPositions![k]).join(', ')
+                  : ''}
+              </td>
+            </tr>
           </tbody>
         </table>
 
         <table id='target'><thead><tr></tr></thead></table>
+        <a href='https://github.com/baconsoap/draggable-table-columns'>Source Code</a>
       </>
     )
   }

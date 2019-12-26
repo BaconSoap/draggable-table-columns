@@ -18,9 +18,10 @@ class App extends React.PureComponent<{}, AppState> {
       ...c,
       order: idsToOrder[c.id]
     }));
+
     newColumns.sort((first, second) => first.order - second.order);
+
     this.setState({ columns: newColumns });
-    console.log(newColumns);
   }
 
   public render() {
