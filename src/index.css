@@ -12,6 +12,11 @@ code {
     monospace;
 }
 
+table th {
+  user-select: none;
+  cursor: pointer;
+}
+
 
 
 /* Default Table Style */
